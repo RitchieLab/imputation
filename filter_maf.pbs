@@ -1,0 +1,77 @@
+#!/bin/bash
+
+##PBS -N jobname
+#PBS -M szs14@psu.edu
+#PBS -m ae
+##PBS -r no
+#PBS -q lionxf-mdr23
+##PBS -t 0,1,2-7%4
+#PBS -l nodes=1
+#PBS -l mem=2gb
+#PBS -l pmem=2gb
+#PBS -l walltime=24:00:00
+##PBS -o output.file
+#PBS -j oe
+
+## these env vars are available when the job runs:
+## PBS_JOBNAME = user-assigned job name as provided at submission
+## PBS_O_HOST = name of the host on which qsub was run
+## PBS_O_LOGNAME = name of user who submitted the job
+## PBS_O_HOME = absolute path of the home directory of the user who submitted the job
+## PBS_O_WORKDIR = absolute path from which the job was submitted
+## PBS_O_QUEUE = name of the scheduling queue to which the job was submitted
+## PBS_SERVER = name of the host to which qsub submitted the job
+## PBS_QUEUE = name of the scheduling queue from which the job is being run
+## PBS_JOBID = unique job number assigned by the scheduler
+## PBS_NODEFILE = filename containing the names of nodes assigned to the job
+## PBS_ARRAYID = array identifier for this sub-job within an array job
+## TMPDIR = absolute path of a per-job temp directory on the assigned node's local disk (not GPFS)
+
+cd $PBS_O_WORKDIR
+
+if [ -z "${MAF}" ]; then
+	echo "ERROR: MAF not set"
+	exit
+elif [ -z "${INDIR}" ]; then
+	echo "ERROR: INDIR not set"
+	exit
+elif [ ! -d "${INDIR}" ]; then
+	echo "ERROR: INDIR=${INDIR} not found"
+	exit
+elif [ -z "${OUTDIR}" ]; then
+	echo "ERROR: OUTDIR not set"
+	exit
+elif [ -z "${PBS_ARRAYID}" ]; then
+	echo "ERROR: PBS_ARRAYID not set"
+	exit
+fi
+
+mkdir -p ${OUTDIR}
+x=$(echo ${PBS_ARRAYID} | sed s/23/X/)
+
+echo "chr ${x} ..."
+bglgz="${INDIR}/ALL.chr${x}.*.bgl.gz"
+markers="${INDIR}/ALL.chr${x}.*.markers"
+excl="${OUTDIR}/ALL.chr${x}.maf$(echo ${MAF} | cut -d. -f2).markers.excl"
+filt_bgl="${OUTDIR}/ALL.chr${x}.filt.bgl.gz"
+filt_markers="${OUTDIR}/ALL.chr${x}.filt.markers"
+
+echo "  identifying markers with MAF >= ${MAF} ..."
+zcat ${bglgz} \
+	| JAVA_OPTIONS="-ea -Xmx1024m" beagleminor N \
+	| JAVA_OPTIONS="-ea -Xmx1024m" filterlines -3 ${MAF} 0.999999 \
+	| cut -f1 \
+	> ${excl}
+
+echo "  filtering beagle file ..."
+zcat ${bglgz} \
+	| JAVA_OPTIONS="-ea -Xmx1024m" filterlines -2 ${excl} \
+	| gzip \
+	> ${filt_bgl}
+
+echo "  filtering marker file ..."
+cat ${markers} \
+	| JAVA_OPTIONS="-ea -Xmx1024m" filterlines -1 ${excl} \
+	> ${filt_markers}
+
+echo "done."
