@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,8,0,'2013-07-19'
+	versMaj,versMin,versRev,versDate = 0,8,1,'2013-08-06'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -96,7 +96,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 		markerCoverage = dict()
 		markerGeno = dict()
 		markerInfo = dict()
-		markerLabels = dict()
+		markerLabels = collections.defaultdict(set)
 		markerDupe = collections.defaultdict(set)
 		markerSwap = collections.defaultdict( lambda:collections.defaultdict(set) ) # {m1:{m2:{i}}}
 		
@@ -138,7 +138,8 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 						markerCoverage[marker] = 1
 						markerGeno[marker] = geno
 						markerInfo[marker] = info
-						markerLabels[marker] = collections.Counter([geno[1]])
+						for lbl in geno[1].split(';'):
+							markerLabels[marker].add(lbl)
 					markerList.append(marker)
 				else:
 					# for subsequent inputs, verify relative order
@@ -148,7 +149,8 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 							markerDupe[marker].add(i)
 						elif markerCoverage[marker] == i:
 							markerCoverage[marker] += 1
-							markerLabels[marker][geno[1]] += 1
+							for lbl in geno[1].split(';'):
+								markerLabels[marker].add(lbl)
 							while mCur < mPrev:
 								mCur += 1
 								if markerCoverage[markerList[mCur]] > i:
@@ -171,9 +173,10 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 		
 		#print "DEBUG:", markerCoverage
 		
-		# apply majority labels to all markers
+		# apply highest RS# labels to all markers
 		for marker,labels in markerLabels.iteritems():
-			markerGeno[marker][1] = labels.most_common(1)[0][0]
+			rses = set(int(l[2:]) for l in labels if l.lower().startswith('rs'))
+			markerGeno[marker][1] = ('rs%d' % max(rses)) if rses else max(labels)
 		
 		# check for marker dupe warnings
 		if markerDupe:
