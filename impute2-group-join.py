@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,8,1,'2013-08-06'
+	versMaj,versMin,versRev,versDate = 0,9,0,'2013-08-08'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -31,7 +31,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 		help="a file listing the expected order of all markers (default: none)"
 	)
 	parser.add_argument('-o', '--output', action='store', type=str, metavar='prefix', required=True,
-		help="prefix for joined output files"
+		help="prefix for joined output and log files"
 	)
 	parser.add_argument('-d', '--dupes', action='store', type=str, metavar='prefix',
 		help="prefix for duplicate sample output files"
@@ -235,6 +235,8 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 	sampleOut = open(args.output+'.phased.sample', 'wb')
 	sampleDupe = None
 	genoOut = gzip.open(args.output+'.impute2.gz', 'wb', compresslevel=6)
+	genoLog = open(args.output+'.log', 'wb')
+	genoLog.write("#chr\tmarker\tpos\tallele1\tallele2\tstatus\tnote\n")
 	genoDupe = None
 	genoCols = [ None for i in iRange0 ]
 	genoUniq = [ list() for i in iRange0 ]
@@ -313,6 +315,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 	nextPctM = int(len(markerIndex) * (nextPctP / 100.0))
 	numMatch = 0
 	numSkip = 0
+	markerSkip = set()
 	try:
 		# initialize input line buffers
 		for i in iRange0:
@@ -331,6 +334,9 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 			match = True
 			for i in iRange0:
 				while genoMarker[i] not in markerIndex:
+					if genoMarker[i] not in markerSkip:
+						markerSkip.add(genoMarker[i])
+						genoLog.write("%s\t%s\t%s\t-\tnot matched\n" % (genoLine[i][0], genoLine[i][1], "\t".join(genoMarker[i])))
 					genoSkip[i] += 1
 					genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
 					genoMarker[i] = (line[2].lower(), min(line[3],line[4]).lower(), max(line[3],line[4]).lower())
@@ -341,6 +347,9 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 				# read forward in all files that did contain the matching marker, then move on
 				for i in iRange0:
 					if genoMarker[i] == marker:
+						if genoMarker[i] not in markerSkip:
+							markerSkip.add(genoMarker[i])
+							genoLog.write("%s\t%s\t%s\t-\tnot matched\n" % (genoLine[i][0], genoLine[i][1], "\t".join(genoMarker[i])))
 						genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
 						genoMarker[i] = (line[2].lower(), min(line[3],line[4]).lower(), max(line[3],line[4]).lower())
 				#foreach input
@@ -350,10 +359,13 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 			
 			# extract marker details, but use the majority label
 			chm = genoLine[0][0]
-			genoLine[0][1] = label
 			pos = genoLine[0][2]
 			a1 = genoLine[0][3]
 			a2 = genoLine[0][4]
+			aliases = set(genoLine[i][1] for i in iRange0 if genoLine[i][1] != label)
+			if aliases:
+				genoLog.write("%s\t%s\t%s\t%s\t%s\t+\t%s\n" % (chm,label,pos,a1,a2,";".join(sorted(aliases))))
+			genoLine[0][1] = label
 			
 			# validate column counts
 			for i in iRange0:
