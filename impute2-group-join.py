@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,9,0,'2013-08-08'
+	versMaj,versMin,versRev,versDate = 0,10,0,'2013-08-09'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -138,7 +138,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 						markerCoverage[marker] = 1
 						markerGeno[marker] = geno
 						markerInfo[marker] = info
-						for lbl in geno[1].split(';'):
+						for lbl in geno[1].lower().split(';'):
 							markerLabels[marker].add(lbl)
 					markerList.append(marker)
 				else:
@@ -149,7 +149,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 							markerDupe[marker].add(i)
 						elif markerCoverage[marker] == i:
 							markerCoverage[marker] += 1
-							for lbl in geno[1].split(';'):
+							for lbl in geno[1].lower().split(';'):
 								markerLabels[marker].add(lbl)
 							while mCur < mPrev:
 								mCur += 1
@@ -164,7 +164,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 				#if i
 			#while next()
 			genoFile[i].seek(0)
-			infoFile[i].close()
+			infoFile[i].seek(0)
 			if i == 0:
 				print "  #%d: %d markers" % (i+1,len(markerList))
 			else:
@@ -175,8 +175,8 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 		
 		# apply highest RS# labels to all markers
 		for marker,labels in markerLabels.iteritems():
-			rses = set(int(l[2:]) for l in labels if l.lower().startswith('rs'))
-			markerGeno[marker][1] = ('rs%d' % max(rses)) if rses else max(labels)
+			rses = set(int(l[2:]) for l in labels if l.startswith('rs'))
+			markerGeno[marker][1] = ('rs%d' % max(rses)) if rses else min(labels)
 		
 		# check for marker dupe warnings
 		if markerDupe:
@@ -235,14 +235,17 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 	sampleOut = open(args.output+'.phased.sample', 'wb')
 	sampleDupe = None
 	genoOut = gzip.open(args.output+'.impute2.gz', 'wb', compresslevel=6)
-	genoLog = open(args.output+'.log', 'wb')
-	genoLog.write("#chr\tmarker\tpos\tallele1\tallele2\tstatus\tnote\n")
 	genoDupe = None
 	genoCols = [ None for i in iRange0 ]
 	genoUniq = [ list() for i in iRange0 ]
 	genoLine = [ None for i in iRange0 ]
 	genoMarker = [ None for i in iRange0 ]
 	genoSkip = [ 0 for i in iRange0 ]
+	infoOut = gzip.open(args.output+'.impute2_info.gz', 'wb', compresslevel=6)
+	infoOut.write("#snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0\n")
+	infoLine = [ None for i in iRange0 ]
+	logOut = open(args.output+'.log', 'wb')
+	logOut.write("#chr\tmarker\tpos\tallele1\tallele2\tstatus\tnote\n")
 	
 	# check samples
 	print "joining samples ..."
@@ -321,6 +324,15 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 		for i in iRange0:
 			genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
 			genoMarker[i] = (line[2].lower(), min(line[3],line[4]).lower(), max(line[3],line[4]).lower())
+			header = infoFile[i].next().rstrip("\r\n")
+			if header != "snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0":
+				exit("ERROR: invalid header on info file #%d: %s" % (i+1,header))
+			line = header
+			while line == header:
+				line = infoFile[i].next().rstrip("\r\n")
+			infoLine[i] = line.split()
+			if (genoLine[i][1] != infoLine[i][1]) or (genoLine[i][2] != infoLine[i][2]):
+				exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (1,i+1,genoLine[i][1],genoLine[i][2],infoLine[i][1],infoLine[i][2]))
 		# join each marker in index order
 		m = 0
 		for marker,label in markerIndex.iteritems():
@@ -336,10 +348,16 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 				while genoMarker[i] not in markerIndex:
 					if genoMarker[i] not in markerSkip:
 						markerSkip.add(genoMarker[i])
-						genoLog.write("%s\t%s\t%s\t-\tnot matched\n" % (genoLine[i][0], genoLine[i][1], "\t".join(genoMarker[i])))
+						logOut.write("%s\t%s\t%s\t-\tnot matched\n" % (genoLine[i][0], genoLine[i][1], "\t".join(genoMarker[i])))
 					genoSkip[i] += 1
 					genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
 					genoMarker[i] = (line[2].lower(), min(line[3],line[4]).lower(), max(line[3],line[4]).lower())
+					line = header
+					while line == header:
+						line = infoFile[i].next().rstrip("\r\n")
+					infoLine[i] = line.split()
+					if (genoLine[i][1] != infoLine[i][1]) or (genoLine[i][2] != infoLine[i][2]):
+						exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (1,i+1,genoLine[i][1],genoLine[i][2],infoLine[i][1],infoLine[i][2]))
 				match = match and (genoMarker[i] == marker)
 			#foreach input
 			if not match:
@@ -349,9 +367,15 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 					if genoMarker[i] == marker:
 						if genoMarker[i] not in markerSkip:
 							markerSkip.add(genoMarker[i])
-							genoLog.write("%s\t%s\t%s\t-\tnot matched\n" % (genoLine[i][0], genoLine[i][1], "\t".join(genoMarker[i])))
+							logOut.write("%s\t%s\t%s\t-\tnot matched\n" % (genoLine[i][0], genoLine[i][1], "\t".join(genoMarker[i])))
 						genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
 						genoMarker[i] = (line[2].lower(), min(line[3],line[4]).lower(), max(line[3],line[4]).lower())
+						line = header
+						while line == header:
+							line = infoFile[i].next().rstrip("\r\n")
+						infoLine[i] = line.split()
+						if (genoLine[i][1] != infoLine[i][1]) or (genoLine[i][2] != infoLine[i][2]):
+							exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (1,i+1,genoLine[i][1],genoLine[i][2],infoLine[i][1],infoLine[i][2]))
 				#foreach input
 				continue
 			#if not match
@@ -362,9 +386,9 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 			pos = genoLine[0][2]
 			a1 = genoLine[0][3]
 			a2 = genoLine[0][4]
-			aliases = set(genoLine[i][1] for i in iRange0 if genoLine[i][1] != label)
+			aliases = set(genoLine[i][1].lower() for i in iRange0 if genoLine[i][1].lower() != label.lower())
 			if aliases:
-				genoLog.write("%s\t%s\t%s\t%s\t%s\t+\t%s\n" % (chm,label,pos,a1,a2,";".join(sorted(aliases))))
+				logOut.write("%s\t%s\t%s\t%s\t%s\t+\t%s\n" % (chm,label,pos,a1,a2,";".join(sorted(aliases))))
 			genoLine[0][1] = label
 			
 			# validate column counts
@@ -374,11 +398,14 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 			#foreach input
 			
 			# for the first input, store the allele order and then write the data through directly
+			values = list()
 			if genoUniq[0] == True:
 				genoOut.write(" ".join(genoLine[0]))
 			elif genoUniq[0] != False:
 				genoOut.write("%s %s %s %s %s " % (chm,label,pos,a1,a2))
 				genoOut.write(" ".join(genoLine[0][c] for c in genoUniq[0]))
+			if infoLine[0][3] != "-1":
+				values.append(float(infoLine[0][3]))
 			
 			# for other inputs, compare allele order to input 1
 			for i in iRange1:
@@ -388,9 +415,13 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 					genoLine[i][4] = a2
 					for c in xrange(5,len(genoLine[i]),3):
 						genoLine[i][c],genoLine[i][c+2] = genoLine[i][c+2],genoLine[i][c]
+					if infoLine[i][3] != "-1":
+						values.append(1.0 - float(infoLine[i][3]))
 					print "  WARNING: swapped allele order for .impute2(.gz) #%d marker '%s'" % (i+1,label)
 				elif genoLine[i][3] != a1 or genoLine[i][4] != a2:
 					exit("ERROR: .impute2(.gz) #%d marker '%s' allele mismatch (%s/%s expected, %s/%s found)" % (i+1,label,a1,a2,genoLine[i][3],genoLine[i][4]))
+				elif infoLine[i][3] != "-1":
+					values.append(float(infoLine[i][3]))
 				if genoUniq[i] == True:
 					genoOut.write(" ")
 					genoOut.write(" ".join(genoLine[i][5:]))
@@ -399,6 +430,18 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 					genoOut.write(" ".join(genoLine[i][c] for c in genoUniq[i]))
 			#foreach input
 			genoOut.write("\n")
+			
+			# merge info data (snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0)
+			infoOut.write("--- %s %s %s" % (label,pos,("%1.3f" % (sum(values)/len(values))) if values else "-1"))
+			for c in (4,5):
+				values = list(float(infoLine[i][c]) for i in iRange0 if infoLine[i][c] != "-1")
+				infoOut.write(" %s" % (("%1.3f" % (sum(values)/len(values))) if values else "-1",))
+			values = list(int(infoLine[i][6]) for i in iRange0)
+			infoOut.write(" %d" % (min(values),))
+			for c in (7,8,9):
+				values = list(float(infoLine[i][c]) for i in iRange0 if infoLine[i][c] != "-1")
+				infoOut.write(" %s" % (("%1.3f" % (sum(values)/len(values))) if values else "-1",))
+			infoOut.write("\n")
 			
 			# write dupe lines from various inputs, if any
 			if sampleDupes and args.dupes:
@@ -413,11 +456,19 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 			for i in iRange0:
 				genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
 				genoMarker[i] = (line[2].lower(),min(line[3],line[4]).lower(),max(line[3],line[4]).lower())
+				line = header
+				while line == header:
+					line = infoFile[i].next().rstrip("\r\n")
+				infoLine[i] = line.split()
+				if (genoLine[i][1] != infoLine[i][1]) or (genoLine[i][2] != infoLine[i][2]):
+					exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (1,i+1,genoLine[i][1],genoLine[i][2],infoLine[i][1],infoLine[i][2]))
 			#foreach input
 		#foreach marker
 	except StopIteration:
 		pass
 	genoOut.close()
+	infoOut.close()
+	logOut.close()
 	if genoDupe:
 		genoDupe.close()
 	for i in iRange0:
@@ -431,6 +482,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 		except StopIteration:
 			pass
 		genoFile[i].close()
+		infoFile[i].close()
 		if n > 0:
 			print "  WARNING: input .impute2(.gz) file #%d has %d leftover lines" % (i+1,n)
 	#foreach input
