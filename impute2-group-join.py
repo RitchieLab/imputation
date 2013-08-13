@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,1,'2013-08-13'
+	versMaj,versMin,versRev,versDate = 0,10,2,'2013-08-13'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -18,7 +18,7 @@ if __name__ == "__main__":
 		formatter_class=argparse.RawDescriptionHelpFormatter,
 		description=versDesc,
 		epilog="""
-example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
+example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22 -d dupe_chr22
 """
 	)
 	parser.add_argument('-i', '--input', action='append', nargs='+', type=str, metavar='prefix', required=True,
@@ -245,7 +245,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 	infoOut.write("#snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0\n")
 	infoLine = [ None for i in iRange0 ]
 	logOut = open(args.output+'.log', 'wb')
-	logOut.write("#chr\tmarker\tpos\tallele1\tallele2\tstatus\tnote\n")
+	logOut.write("#snp_id\trs_id\tposition\tallele1\tallele2\tstatus\tnote\n")
 	
 	# check samples
 	print "joining samples ..."
@@ -384,13 +384,13 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 			numMatch += 1
 			
 			# extract marker details, but use the majority label
-			chm = genoLine[0][0]
+			snp = genoLine[0][0]
 			pos = genoLine[0][2]
 			a1 = genoLine[0][3]
 			a2 = genoLine[0][4]
 			aliases = set(genoLine[i][1].lower() for i in iRange0 if genoLine[i][1].lower() != label.lower())
 			if aliases:
-				logOut.write("%s\t%s\t%s\t%s\t%s\t+\t%s\n" % (chm,label,pos,a1,a2,";".join(sorted(aliases))))
+				logOut.write("%s\t%s\t%s\t%s\t%s\t+\t%s\n" % (snp,label,pos,a1,a2,";".join(sorted(aliases))))
 			genoLine[0][1] = label
 			
 			# validate column counts
@@ -404,7 +404,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 			if genoUniq[0] == True:
 				genoOut.write(" ".join(genoLine[0]))
 			elif genoUniq[0] != False:
-				genoOut.write("%s %s %s %s %s " % (chm,label,pos,a1,a2))
+				genoOut.write("%s %s %s %s %s " % (snp,label,pos,a1,a2))
 				genoOut.write(" ".join(genoLine[0][c] for c in genoUniq[0]))
 			if infoLine[0][3] != "-1":
 				values.append(float(infoLine[0][3]))
@@ -434,7 +434,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 			genoOut.write("\n")
 			
 			# merge info data (snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0)
-			infoOut.write("--- %s %s %s" % (label,pos,("%1.3f" % (sum(values)/len(values))) if values else "-1"))
+			infoOut.write("%s %s %s %s" % (snp,label,pos,("%1.3f" % (sum(values)/len(values))) if values else "-1"))
 			for c in (4,5):
 				values = list(float(infoLine[i][c]) for i in iRange0 if infoLine[i][c] != "-1")
 				infoOut.write(" %s" % (("%1.3f" % (sum(values)/len(values))) if values else "-1",))
@@ -447,9 +447,9 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 			
 			# write dupe lines from various inputs, if any
 			if sampleDupes and args.dupes:
-				genoDupe.write("%s %s %s %s %s " % (chm,label,pos,a1,a2))
+				genoDupe.write("%s %s %s %s %s " % (snp,label,pos,a1,a2))
 				genoDupe.write(" ".join(("%s %s %s" % tuple(genoLine[dupe[0]][(5+3*dupe[1]):(8+3*dupe[1])])) for dupe in sampleDupes))
-				genoDupe.write("\n%s %s %s %s %s " % (chm,label,pos,a1,a2))
+				genoDupe.write("\n%s %s %s %s %s " % (snp,label,pos,a1,a2))
 				genoDupe.write(" ".join(("%s %s %s" % tuple(genoLine[dupe[2]][(5+3*dupe[3]):(8+3*dupe[3])])) for dupe in sampleDupes))
 				genoDupe.write("\n")
 			#if dupes
