@@ -292,7 +292,7 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 						sampleDupe.write("%s\n" % sampleHeader2)
 					if not genoDupe:
 						genoDupe = open(args.dupes+'.impute2.gz', 'wb')
-					sampleDupe.write("(%d/%d)%s" % (sampleFirst[sampleID][0],i,(" ".join(sample))))
+					sampleDupe.write("(%d/%d)%s\n" % (sampleFirst[sampleID][0],i,(" ".join(sample))))
 			else:
 				sampleFirst[sampleID] = (i,s)
 				genoUniq[i].extend(xrange(5+s*3,5+s*3+3))
