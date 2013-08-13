@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,0,'2013-08-09'
+	versMaj,versMin,versRev,versDate = 0,10,1,'2013-08-13'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -290,6 +290,8 @@ example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22
 						sampleDupe = open(args.dupes+'.phased.sample', 'wb')
 						sampleDupe.write("%s\n" % sampleHeader1)
 						sampleDupe.write("%s\n" % sampleHeader2)
+					if not genoDupe:
+						genoDupe = open(args.dupes+'.impute2.gz', 'wb')
 					sampleDupe.write("(%d/%d)%s" % (sampleFirst[sampleID][0],i,(" ".join(sample))))
 			else:
 				sampleFirst[sampleID] = (i,s)
