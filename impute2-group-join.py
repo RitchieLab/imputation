@@ -19,6 +19,9 @@ if __name__ == "__main__":
 		description=versDesc,
 		epilog="""
 example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22 -d dupe_chr22
+
+The script requires ~1.5 hours and ~2GB RAM per million markers to be merged,
+but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 """
 	)
 	parser.add_argument('-i', '--input', action='append', nargs='+', type=str, metavar='prefix', required=True,
