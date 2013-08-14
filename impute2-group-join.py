@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,2,'2013-08-13'
+	versMaj,versMin,versRev,versDate = 0,1032,'2013-08-14'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -188,7 +188,7 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 				print "writing duplicate markers to '%s' ..." % (args.dupes+'.markers',)
 				with open(args.dupes+'.markers','wb') as dupesFile:
 					for marker in sorted(markerDupe, key=markerOrder.get):
-						dupesFile.write("%s %s\n" % (" ".join(markerGeno[marker]), " ".join(prefixList[i] for i in sorted(markerDupes[marker]))))
+						dupesFile.write("%s %s\n" % (" ".join(markerGeno[marker]), " ".join(prefixList[i] for i in sorted(markerDupe[marker]))))
 				print "... OK"
 		
 		# check for marker swap errors
