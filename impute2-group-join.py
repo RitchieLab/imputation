@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,1032,'2013-08-14'
+	versMaj,versMin,versRev,versDate = 0,10,3,'2013-08-14'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
