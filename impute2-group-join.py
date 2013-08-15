@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,3,'2013-08-14'
+	versMaj,versMin,versRev,versDate = 0,10,4,'2013-08-15'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -46,7 +46,7 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 	
 	# open input file(s)
 	print "finding input files ..."
-	prefixList = itertools.chain(*args.input)
+	prefixList = list(itertools.chain(*args.input))
 	sampleFile = list()
 	genoFile = list()
 	infoFile = list()
@@ -89,14 +89,14 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 					marker = (words[2].lower(), min(words[3],words[4]).lower(), max(words[3],words[4]).lower())
 					if marker in markerIndex:
 						exit("ERROR: duplicate marker: %s" % (" ".join(words),))
-					markerIndex[marker] = words[1]
+					markerIndex[marker] = (len(markerIndex),words[1])
 		#with markerFile
 		print "... OK: %d markers" % (len(markerIndex),)
 	else:
 		print "building markers index from input files ..."
 		markerList = list()
 		markerOrder = dict()
-		markerCoverage = dict()
+		markerExpect = set()
 		markerGeno = dict()
 		markerInfo = dict()
 		markerLabels = collections.defaultdict(set)
@@ -104,10 +104,12 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 		markerSwap = collections.defaultdict( lambda:collections.defaultdict(set) ) # {m1:{m2:{i}}}
 		
 		for i in iRange0:
-			m = mCur = mPrev = mMatch = 0
+			m = mCur = mPrev = 0
 			header = infoFile[i].next().rstrip("\r\n")
 			if header != "snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0":
 				exit("ERROR: invalid header on info file #%d: %s" % (i+1,header))
+			if i > 0:
+				markerExpect = set(markerOrder)
 			while True:
 				# make sure geno/info files agree
 				try:
@@ -135,46 +137,38 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 				if i == 0:
 					# for the first input, just check for duplicates and store metadata
 					if marker in markerOrder:
-						markerDupe[marker].add(0)
+						markerDupe[marker].add(i)
 					else:
 						markerOrder[marker] = len(markerList)
-						markerCoverage[marker] = 1
+						markerList.append(marker)
 						markerGeno[marker] = geno
 						markerInfo[marker] = info
 						for lbl in geno[1].lower().split(';'):
 							markerLabels[marker].add(lbl)
-					markerList.append(marker)
-				else:
+				elif marker in markerExpect:
 					# for subsequent inputs, verify relative order
-					try:
-						mCur = markerOrder[marker]
-						if markerCoverage[marker] > i:
-							markerDupe[marker].add(i)
-						elif markerCoverage[marker] == i:
-							markerCoverage[marker] += 1
-							for lbl in geno[1].lower().split(';'):
-								markerLabels[marker].add(lbl)
-							while mCur < mPrev:
-								mCur += 1
-								if markerCoverage[markerList[mCur]] > i:
-									markerSwap[marker][markerList[mCur]].add(i+1) # +1 here so we can .join() later
-							mMatch += 1
-							mPrev = mCur
-						#else:
-						#	print "DEBUG: input #%d marker '%s' coverage %d" % (i+1,marker,markerCoverage[marker])
-					except KeyError:
-						pass
+					for lbl in geno[1].lower().split(';'):
+						markerLabels[marker].add(lbl)
+					mCur = markerOrder[marker]
+					if mCur >= mPrev:
+						markerExpect.remove(marker)
+						mPrev = mCur
+					while mCur < mPrev:
+						mCur += 1
+						markerSwap[marker][markerList[mCur]].add(i+1) # +1 here so we can .join() later
+				elif marker in markerOrder:
+					markerDupe[marker].add(i)
 				#if i
 			#while next()
 			genoFile[i].seek(0)
 			infoFile[i].seek(0)
 			if i == 0:
-				print "  #%d: %d markers" % (i+1,len(markerList))
+				print "  #%d: %d markers" % (i+1,len(markerOrder))
 			else:
-				print "  #%d: %d markers (%d matching)" % (i+1,m,mMatch)
+				for marker in markerExpect:
+					del markerOrder[marker]
+				print "  #%d: %d markers (%d matching)" % (i+1,m,len(markerOrder))
 		#foreach input
-		
-		#print "DEBUG:", markerCoverage
 		
 		# apply highest RS# labels to all markers
 		for marker,labels in markerLabels.iteritems():
@@ -195,19 +189,21 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 		iSwaps = None
 		for marker1 in markerSwap:
 			for marker2 in markerSwap[marker1]:
-				if (markerCoverage[marker1] == len(iRange0)) and (markerCoverage[marker2] == len(iRange0)):
+				if (marker1 in markerOrder) and (marker2 in markerOrder):
 					iSwaps = [str(iSwap) for iSwap in sorted(markerSwap[marker1][marker2])]
 					print "ERROR: marker positions %s and %s order swapped in .impute2(.gz) file(s) #%s" % (marker1[0],marker2[0],",#".join(iSwaps))
 		if iSwaps:
 			exit(1)
 		
 		# compile matched markers
-		for m,marker in enumerate(markerList):
-			if (markerOrder[marker] == m) and (markerCoverage[marker] == len(iRange0)):
+		mPrev = 0
+		for marker in markerList:
+			if (marker in markerOrder) and (markerOrder[marker] >= mPrev):
 				if marker in markerIndex:
 					exit("ERROR: duplicate marker: %s" % (" ".join(marker),))
-				markerIndex[marker] = markerGeno[marker][1]
-		print "... OK: %d matched markers" % (len(markerList),)
+				markerIndex[marker] = (len(markerIndex),markerGeno[marker][1])
+				mPrev = markerOrder[marker]
+		print "... OK: %d matched markers" % (len(markerIndex),)
 		
 		# write final marker index to file
 		if args.markers:
@@ -215,8 +211,8 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 			with open(args.markers,'wb') as markerFile:
 				markerFile.write("\n".join( " ".join(markerGeno[marker]) for marker in markerIndex.iterkeys() ))
 				markerFile.write("\n")
-			print "... OK: %d markers written" % len(markerIndex)
-		markerList = markerOrder = markerCoverage = markerGeno = markerInfo = markerLabels = markerDupe = markerSwap = None
+			print "... OK: %d markers written" % (len(markerIndex),)
+		markerList = markerOrder = markerExpect = markerGeno = markerInfo = markerLabels = markerDupe = markerSwap = None
 	#if args.markers
 	
 	# read the sample filter file, if any
@@ -325,36 +321,27 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 	numSkip = 0
 	markerSkip = set()
 	try:
-		# initialize input line buffers
-		for i in iRange0:
-			genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
-			genoMarker[i] = (line[2].lower(), min(line[3],line[4]).lower(), max(line[3],line[4]).lower())
-			header = infoFile[i].next().rstrip("\r\n")
-			if header != "snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0":
-				exit("ERROR: invalid header on info file #%d: %s" % (i+1,header))
-			line = header
-			while line == header:
-				line = infoFile[i].next().rstrip("\r\n")
-			infoLine[i] = line.split()
-			if (genoLine[i][1] != infoLine[i][1]) or (genoLine[i][2] != infoLine[i][2]):
-				exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (1,i+1,genoLine[i][1],genoLine[i][2],infoLine[i][1],infoLine[i][2]))
 		# join each marker in index order
 		m = 0
-		for marker,label in markerIndex.iteritems():
+		for marker,indexlabel in markerIndex.iteritems():
+			index,label = indexlabel
 			if m > nextPctM:
 				print "  ... %d%% ..." % nextPctP
 				nextPctP += 10
 				nextPctM = int(len(markerIndex) * (nextPctP / 100.0))
 			m += 1
 			
-			# make sure all inputs provide this marker
+			# try to read forward to this marker in all inputs
+			for i in iRange0:
+				genoMarker[i] = None
 			match = True
 			for i in iRange0:
-				while genoMarker[i] not in markerIndex:
-					if genoMarker[i] not in markerSkip:
-						markerSkip.add(genoMarker[i])
-						logOut.write("%s\t%s\t%s\t-\tnot matched\n" % (genoLine[i][0], genoLine[i][1], "\t".join(genoMarker[i])))
-					genoSkip[i] += 1
+				while markerIndex.get(genoMarker[i],(-1,None))[0] < index:
+					if genoMarker[i]:
+						if genoMarker[i] not in markerSkip:
+							markerSkip.add(genoMarker[i])
+							logOut.write("%s\t%s\t%s\t-\tnot matched\n" % (genoLine[i][0], genoLine[i][1], "\t".join(genoMarker[i])))
+						genoSkip[i] += 1
 					genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
 					genoMarker[i] = (line[2].lower(), min(line[3],line[4]).lower(), max(line[3],line[4]).lower())
 					line = header
@@ -365,28 +352,14 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 						exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (1,i+1,genoLine[i][1],genoLine[i][2],infoLine[i][1],infoLine[i][2]))
 				match = match and (genoMarker[i] == marker)
 			#foreach input
+			
+			# if the expected marker wasn't found in all inputs, move on to the next
 			if not match:
 				numSkip += 1
-				# read forward in all files that did contain the matching marker, then move on
-				for i in iRange0:
-					if genoMarker[i] == marker:
-						if genoMarker[i] not in markerSkip:
-							markerSkip.add(genoMarker[i])
-							logOut.write("%s\t%s\t%s\t-\tnot matched\n" % (genoLine[i][0], genoLine[i][1], "\t".join(genoMarker[i])))
-						genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
-						genoMarker[i] = (line[2].lower(), min(line[3],line[4]).lower(), max(line[3],line[4]).lower())
-						line = header
-						while line == header:
-							line = infoFile[i].next().rstrip("\r\n")
-						infoLine[i] = line.split()
-						if (genoLine[i][1] != infoLine[i][1]) or (genoLine[i][2] != infoLine[i][2]):
-							exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (1,i+1,genoLine[i][1],genoLine[i][2],infoLine[i][1],infoLine[i][2]))
-				#foreach input
 				continue
-			#if not match
 			numMatch += 1
 			
-			# extract marker details, but use the majority label
+			# extract marker details, but use the preferred label
 			snp = genoLine[0][0]
 			pos = genoLine[0][2]
 			a1 = genoLine[0][3]
@@ -456,18 +429,6 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 				genoDupe.write(" ".join(("%s %s %s" % tuple(genoLine[dupe[2]][(5+3*dupe[3]):(8+3*dupe[3])])) for dupe in sampleDupes))
 				genoDupe.write("\n")
 			#if dupes
-			
-			# read forward in all files
-			for i in iRange0:
-				genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
-				genoMarker[i] = (line[2].lower(),min(line[3],line[4]).lower(),max(line[3],line[4]).lower())
-				line = header
-				while line == header:
-					line = infoFile[i].next().rstrip("\r\n")
-				infoLine[i] = line.split()
-				if (genoLine[i][1] != infoLine[i][1]) or (genoLine[i][2] != infoLine[i][2]):
-					exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (1,i+1,genoLine[i][1],genoLine[i][2],infoLine[i][1],infoLine[i][2]))
-			#foreach input
 		#foreach marker
 	except StopIteration:
 		pass
