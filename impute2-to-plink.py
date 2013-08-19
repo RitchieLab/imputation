@@ -99,7 +99,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,9,0,'2013-04-09'
+	versMaj,versMin,versRev,versDate = 0,9,1,'2013-08-19'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-to-plink version %s" % versStr
 	
@@ -182,10 +182,13 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 		print "reading genotype info file '%s' ..." % infoPath
 		with zopen(infoPath) as infoFile:
 			for line in infoFile:
-				if not line.startswith("snp_id rs_id position exp_freq_a1 info certainty type"):
-					words = line.split(None,7)
-					markerIndex[words[1]].add(len(markers))
-					markers.append( [words[1], words[2], words[3], words[6]] )
+				if line.startswith("#"):
+					continue
+				if line.startswith("snp_id rs_id position exp_freq_a1 info certainty type"):
+					continue
+				words = line.split(None,7)
+				markerIndex[words[1]].add(len(markers))
+				markers.append( [words[1], words[2], words[3], words[6]] )
 			#foreach line in infoFile
 		#with infoFile
 		print "... OK: %d markers (%d duplicate)" % (len(markers),len(markers)-len(markerIndex))
