@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,4,'2013-08-15'
+	versMaj,versMin,versRev,versDate = 0,10,5,'2013-08-22'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -106,6 +106,8 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 		for i in iRange0:
 			m = mCur = mPrev = 0
 			header = infoFile[i].next().rstrip("\r\n")
+			while header.startswith('#'):
+				header = header[1:]
 			if header != "snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0":
 				exit("ERROR: invalid header on info file #%d: %s" % (i+1,header))
 			if i > 0:
@@ -116,15 +118,15 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 					geno = genoFile[i].next().rstrip("\r\n").split(None,5)[:-1]
 				except StopIteration:
 					try:
-						line = header
-						while line == header:
+						line = "#"
+						while line.startswith("#") or (line == header):
 							line = infoFile[i].next().rstrip("\r\n")
 						exit("ERROR: input genotype file #%d ended after %d markers, but info file continues" % (i+1,m))
 					except StopIteration:
 						break
 				try:
-					line = header
-					while line == header:
+					line = "#"
+					while line.startswith("#") or (line == header):
 						line = infoFile[i].next().rstrip("\r\n")
 					info = line.split()
 				except StopIteration:
@@ -241,7 +243,7 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 	genoMarker = [ None for i in iRange0 ]
 	genoSkip = [ 0 for i in iRange0 ]
 	infoOut = gzip.open(args.output+'.impute2_info.gz', 'wb', compresslevel=6)
-	infoOut.write("#snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0\n")
+	infoOut.write("snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0\n")
 	infoLine = [ None for i in iRange0 ]
 	logOut = open(args.output+'.log', 'wb')
 	logOut.write("#snp_id\trs_id\tposition\tallele1\tallele2\tstatus\tnote\n")
@@ -321,6 +323,14 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 	numSkip = 0
 	markerSkip = set()
 	try:
+		# validate info headers
+		for i in iRange0:
+			header = infoFile[i].next().rstrip("\r\n")
+			while header.startswith('#'):
+				header = header[1:]
+			if header != "snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0":
+				exit("ERROR: invalid header on info file #%d: %s" % (i+1,header))
+		
 		# join each marker in index order
 		m = 0
 		for marker,indexlabel in markerIndex.iteritems():
@@ -344,8 +354,8 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 						genoSkip[i] += 1
 					genoLine[i] = line = genoFile[i].next().rstrip("\r\n").split()
 					genoMarker[i] = (line[2].lower(), min(line[3],line[4]).lower(), max(line[3],line[4]).lower())
-					line = header
-					while line == header:
+					line = "#"
+					while line.startswith("#") or (line == header):
 						line = infoFile[i].next().rstrip("\r\n")
 					infoLine[i] = line.split()
 					if (genoLine[i][1] != infoLine[i][1]) or (genoLine[i][2] != infoLine[i][2]):
