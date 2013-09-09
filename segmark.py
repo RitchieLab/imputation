@@ -4,7 +4,8 @@ import sys
 import argparse
 
 
-def segmark(inputFiles, chm, segB, segM, mgnB, mgnM, last, outputFile, bases, quiet):
+def segmark(inputFiles, col, chm, segB, segM, mgnB, mgnM, last, outputFile, bases, quiet):
+	col = (col - 1) if col > 0 else col
 	with (sys.stdout if ((not outputFile) or (outputFile == '-')) else open(outputFile,'w')) as out:
 		msg = (sys.stderr if (out == sys.stdout) else sys.stdout)
 		
@@ -35,7 +36,7 @@ def segmark(inputFiles, chm, segB, segM, mgnB, mgnM, last, outputFile, bases, qu
 				for line in fileObj:
 					n += 1
 					try:
-						markerList.append(int(line.split()[0]))
+						markerList.append(int(line.split()[col]))
 					except ValueError:
 						# assume that a value error on the first line means there was a header line
 						if n > 1:
@@ -188,7 +189,7 @@ def segmark_parseSize(arg):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,2,0,'2012-12-18'
+	versMaj,versMin,versRev,versDate = 0,3,0,'2013-09-09'
 	version = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	
 	# define usage
@@ -198,8 +199,8 @@ if __name__ == "__main__":
 		epilog="""
 example: %(prog)s -i chr5.positions -c 5 -s 50mb -m 1mb
 
-The marker positions must be in the first (or only) column of the input
-file(s); any extra columns will be ignored.
+If the marker positions are not in the first (or only) column of the input
+file(s), the --field option must be used to indicate their position.
 
 The positions will be divided into the smallest allowable segments according to
 the specified minimum segment and margin sizes.  All sizes must include a
@@ -216,6 +217,9 @@ than twice the margin size.
 	)
 	parser.add_argument('-i', '--input', action='append', nargs='+', type=str, metavar='file',
 		help="list(s) of positions to segment (default: stdin)"
+	)
+	parser.add_argument('-f', '--field', action='store', type=int, metavar='num', default=1,
+		help="field/column number of input list(s) which contains the marker position (default: 1)"
 	)
 	parser.add_argument('-c', '--chromosome', action='store', type=str, metavar='chr',
 		help="chromosome label (default: not used)"
@@ -252,6 +256,11 @@ than twice the margin size.
 	if len(inputFiles) == 0:
 		inputFiles.append('-')
 	
+	# validate column position
+	if args.field == 0:
+		print "--field cannot be 0"
+		sys.exit(1)
+	
 	# parse segment size(s)
 	segB = segM = 1
 	for sizeSet in args.segment:
@@ -269,5 +278,5 @@ than twice the margin size.
 			mgnM = max(mgnM, m)
 	
 	# run segmentation
-	segmark(inputFiles, args.chromosome, segB, segM, mgnB, mgnM, args.last, args.output, args.bases, args.quiet)
+	segmark(inputFiles, args.field, args.chromosome, segB, segM, mgnB, mgnM, args.last, args.output, args.bases, args.quiet)
 #__main__()
