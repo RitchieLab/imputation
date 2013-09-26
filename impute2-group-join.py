@@ -9,7 +9,7 @@ import sys
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,5,'2013-08-22'
+	versMaj,versMin,versRev,versDate = 0,10,6,'2013-09-26'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -102,6 +102,7 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 		markerLabels = collections.defaultdict(set)
 		markerDupe = collections.defaultdict(set)
 		markerSwap = collections.defaultdict( lambda:collections.defaultdict(set) ) # {m1:{m2:{i}}}
+		numSwaps = 0
 		
 		for i in iRange0:
 			m = mCur = mPrev = 0
@@ -110,10 +111,9 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 				header = header[1:]
 			if header != "snp_id rs_id position exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0":
 				exit("ERROR: invalid header on info file #%d: %s" % (i+1,header))
-			if i > 0:
-				markerExpect = set(markerOrder)
+			markerExpect = set(markerOrder)
 			while True:
-				# make sure geno/info files agree
+				# make sure geno/info files agree with eachother
 				try:
 					geno = genoFile[i].next().rstrip("\r\n").split(None,5)[:-1]
 				except StopIteration:
@@ -155,9 +155,10 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 					if mCur >= mPrev:
 						markerExpect.remove(marker)
 						mPrev = mCur
-					while mCur < mPrev:
-						mCur += 1
-						markerSwap[marker][markerList[mCur]].add(i+1) # +1 here so we can .join() later
+					else:
+						numSwaps += 1
+						if numSwaps <= 100: # prevent memory explosion
+							markerSwap[marker][markerList[mPrev]].add(i+1) # +1 here so we can .join() later
 				elif marker in markerOrder:
 					markerDupe[marker].add(i)
 				#if i
@@ -194,6 +195,8 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 				if (marker1 in markerOrder) and (marker2 in markerOrder):
 					iSwaps = [str(iSwap) for iSwap in sorted(markerSwap[marker1][marker2])]
 					print "ERROR: marker positions %s and %s order swapped in .impute2(.gz) file(s) #%s" % (marker1[0],marker2[0],",#".join(iSwaps))
+		if numSwaps > 100:
+			print "WARNING: only 100 swap errors were logged, but there were %d total swaps" % (numSwaps,)
 		if iSwaps:
 			exit(1)
 		
