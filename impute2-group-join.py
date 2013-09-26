@@ -11,7 +11,7 @@ import zlib
 
 class zopen(object):
 	
-	def __init__(self, fileName, splitChar="\n", chunkSize=16*1024):
+	def __init__(self, fileName, splitChar="\n", chunkSize=1024*1024):
 		self._filePtr = open(fileName,'rb')
 		self._splitChar = splitChar
 		self._chunkSize = chunkSize
@@ -88,7 +88,7 @@ class zopen(object):
 		if offset != 0:
 			raise Exception("zfile.seek() does not support offsets != 0")
 		self._filePtr.seek(0, whence)
-		self._dc.flush()
+		self._dc = zlib.decompressobj(zlib.MAX_WBITS | 32) # autodetect gzip or zlib header
 		self._text = ""
 		self._lines = list()
 	#seek()
