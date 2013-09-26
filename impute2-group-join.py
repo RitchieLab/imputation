@@ -6,10 +6,98 @@ import gzip
 import itertools
 import os
 import sys
+import zlib
+
+
+class zopen(object):
+	
+	def __init__(self, fileName, splitChar="\n", chunkSize=16*1024):
+		self._filePtr = open(fileName,'rb')
+		self._splitChar = splitChar
+		self._chunkSize = chunkSize
+		self._dc = zlib.decompressobj(zlib.MAX_WBITS | 32) # autodetect gzip or zlib header
+		self._text = ""
+		self._lines = list()
+	#__init__()
+	
+	
+	def __del__(self):
+		if self._filePtr:
+			self._filePtr.close()
+	#__del__()
+	
+	
+	def __enter__(self):
+		return self
+	#__enter__()
+	
+	
+	def __exit__(self, excType, excVal, excTrace):
+		pass
+	#__exit__()
+	
+	
+	def __iter__(self):
+		return self
+	#__iter__()
+	
+	
+	def __next__(self):
+		# if lines are still cached from the last read, pop one
+		if len(self._lines) > 0:
+			return self._lines.pop()
+		# if there's data left in the source file, read and decompress another chunk
+		if self._dc:
+			data = self._dc.unused_data
+			if data:
+				self._dc = zlib.decompressobj(zlib.MAX_WBITS | 32) # autodetect gzip or zlib header
+			else:
+				data = self._filePtr.read(self._chunkSize)
+			if data:
+				self._text += self._dc.decompress(data)
+				data = None
+			else:
+				self._text += self._dc.flush()
+				self._dc = None
+		# if there's no text left, we're done
+		if not self._text:
+			raise StopIteration
+		# split the text into lines
+		self._lines = self._text.split(self._splitChar)
+		self._text = ""
+		# if there's more than one line, store the last to combine with the next chunk
+		# (but if there's only one line, and more to read, then keep reading until we get a linebreak)
+		if len(self._lines) > 1:
+			self._text = self._lines.pop()
+		elif self._dc:
+			self._text = self._lines.pop()
+			self._chunkSize *= 2
+			return self.__next__()
+		# reverse the remaining lines into a stack and pop one to return
+		self._lines.reverse()
+		return self._lines.pop()
+	#__next__()
+	
+	
+	def next(self):
+		return self.__next__()
+	#next()
+	
+	
+	def seek(self, offset, whence = 0):
+		if offset != 0:
+			raise Exception("zfile.seek() does not support offsets != 0")
+		self._filePtr.seek(0, whence)
+		self._dc.flush()
+		self._text = ""
+		self._lines = list()
+	#seek()
+	
+#zopen
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,6,'2013-09-26'
+	versMaj,versMin,versRev,versDate = 0,10,7,'2013-09-26'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -52,21 +140,21 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 	infoFile = list()
 	for prefix in prefixList:
 		if os.path.exists(prefix+'.phased.sample.gz'):
-			sampleFile.append(gzip.open(prefix+'.phased.sample.gz','rb'))
+			sampleFile.append(zopen(prefix+'.phased.sample.gz'))
 		elif os.path.exists(prefix+'.phased.sample'):
 			sampleFile.append(open(prefix+'.phased.sample','rU'))
 		else:
 			exit("ERROR: %s.phased.sample(.gz) not found" % prefix)
 		
 		if os.path.exists(prefix+'.best_guess_haps_imputation.impute2.gz'):
-			genoFile.append(gzip.open(prefix+'.best_guess_haps_imputation.impute2.gz','rb'))
+			genoFile.append(zopen(prefix+'.best_guess_haps_imputation.impute2.gz'))
 		elif os.path.exists(prefix+'.best_guess_haps_imputation.impute2'):
 			genoFile.append(open(prefix+'.best_guess_haps_imputation.impute2','rU'))
 		else:
 			exit("ERROR: %s.best_guess_haps_imputation.impute2(.gz) not found" % prefix)
 		
 		if os.path.exists(prefix+'.best_guess_haps_imputation.impute2_info.gz'):
-			infoFile.append(gzip.open(prefix+'.best_guess_haps_imputation.impute2_info.gz','rb'))
+			infoFile.append(zopen(prefix+'.best_guess_haps_imputation.impute2_info.gz'))
 		elif os.path.exists(prefix+'.best_guess_haps_imputation.impute2_info'):
 			infoFile.append(open(prefix+'.best_guess_haps_imputation.impute2_info','rU'))
 		else:
