@@ -243,7 +243,8 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 						markerExpect.remove(marker)
 						mPrev = mCur
 					while mCur < mPrev:
-						markerSwap[marker][markerList[mPrev]].add(i+1) # +1 here so we can .join() later
+						mCur += 1
+						markerSwap[marker][markerList[mCur]].add(i+1) # +1 here so we can .join() later
 				elif marker in markerOrder:
 					markerDupe[marker].add(i)
 				#if i
