@@ -97,7 +97,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,7,'2013-09-26'
+	versMaj,versMin,versRev,versDate = 0,10,8,'2013-10-02'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -190,7 +190,6 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 		markerLabels = collections.defaultdict(set)
 		markerDupe = collections.defaultdict(set)
 		markerSwap = collections.defaultdict( lambda:collections.defaultdict(set) ) # {m1:{m2:{i}}}
-		numSwaps = 0
 		
 		for i in iRange0:
 			m = mCur = mPrev = 0
@@ -243,10 +242,8 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 					if mCur >= mPrev:
 						markerExpect.remove(marker)
 						mPrev = mCur
-					else:
-						numSwaps += 1
-						if numSwaps <= 100: # prevent memory explosion
-							markerSwap[marker][markerList[mPrev]].add(i+1) # +1 here so we can .join() later
+					while mCur < mPrev:
+						markerSwap[marker][markerList[mPrev]].add(i+1) # +1 here so we can .join() later
 				elif marker in markerOrder:
 					markerDupe[marker].add(i)
 				#if i
@@ -283,8 +280,6 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 				if (marker1 in markerOrder) and (marker2 in markerOrder):
 					iSwaps = [str(iSwap) for iSwap in sorted(markerSwap[marker1][marker2])]
 					print "ERROR: marker positions %s and %s order swapped in .impute2(.gz) file(s) #%s" % (marker1[0],marker2[0],",#".join(iSwaps))
-		if numSwaps > 100:
-			print "WARNING: only 100 swap errors were logged, but there were %d total swaps" % (numSwaps,)
 		if iSwaps:
 			exit(1)
 		
@@ -483,6 +478,8 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 			elif genoUniq[0] != False:
 				genoOut.write("%s %s %s %s %s " % (snp,label,pos,a1,a2))
 				genoOut.write(" ".join(genoLine[0][c] for c in genoUniq[0]))
+			else:
+				genoOut.write("%s %s %s %s %s" % (snp,label,pos,a1,a2))
 			if infoLine[0][3] != "-1":
 				values.append(float(infoLine[0][3]))
 			
