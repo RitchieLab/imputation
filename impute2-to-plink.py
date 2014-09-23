@@ -99,7 +99,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,9,2,'2014-09-23'
+	versMaj,versMin,versRev,versDate = 0,9,3,'2014-09-23'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-to-plink version %s" % versStr
 	
@@ -186,9 +186,9 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 					continue
 				if line.startswith("snp_id rs_id position exp_freq_a1 info certainty type"):
 					continue
-				words = line.split(None,7)
-				markerIndex[words[1]].add(len(markers))
-				markers.append( [words[1], words[2], words[3], words[6]] )
+				snpid,rsid,pos,freq,info,certainty,imptype = line.split(None,7)
+				markerIndex[rsid].add( len(markers) )
+				markers.append( [rsid, pos, freq, imptype] )
 			#foreach line in infoFile
 		#with infoFile
 		print "... OK: %d markers (%d duplicate)" % (len(markers),len(markers)-len(markerIndex))
@@ -203,12 +203,12 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 				if m >= len(markers):
 					print "ERROR: genotype file contains too many markers"
 					sys.exit(1)
-				words = line.split(None,5)
-				if words[1] != markers[m][0]:
-					print "ERROR: genotype marker #%d is '%s', expected '%s'" % (m+1,words[1],markers[m][0])
+				snpid,rsid,_,a1,a2 = line.split(None,5)
+				if rsid != markers[m][0]:
+					print "ERROR: genotype marker #%d is '%s', expected '%s'" % (m+1,rsid,markers[m][0])
 					sys.exit(1)
-				markers[m].append(words[3])
-				markers[m].append(words[4])
+				markers[m].append(a1)
+				markers[m].append(a2)
 				m += 1
 			#foreach line in genoFile
 		#with genoFile
@@ -221,61 +221,109 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 	# markers=[ (rsid,pos,freq,type,a1,a2), ... ]
 	
 	# choose between duplicate markers
-	print "writing .drop.txt file '%s.drop.txt' ..." % args.prefix
-	strandFlipTrans = string.maketrans('AaCcGgTt','TTGGCCAA')
-	# s.translate(strandFlipTrans) is a shorter equivalent of s.replace('A','T').replace('C','G').replace('G','C').replace('T','A')
-	# which is used to check if one pair of alleles is the strand-flipped complement of the other
 	markerDrop = set()
-	with open(args.prefix+'.drop.txt','wb') as dropFile:
-		dropFile.write("rs_id position exp_freq_a1 type allele1 allele2 status reason\n")
+	if True:
+		# the original logic was already complicated, and only covered the case of two versions;
+		# in order to handle 3 versions, we moved to a simpler priority system for which ones to rename
+		print "annotating duplicate markers ..."
 		for marker,indecies in markerIndex.iteritems():
-			if len(indecies) > 2:
-				print "ERROR: %d occurrences of marker '%s'; only 2 are supported" % (len(indecies),marker)
-				sys.exit(1)
-			if len(indecies) == 2:
-				index0 = indecies.pop()
-				index23 = indecies.pop()
-				marker0 = markers[index0]
-				marker23 = markers[index23]
-				if marker0[3] == marker23[3]:
-					print "ERROR: 2 occurrences of marker '%s' are both type %s" % (marker,marker0[3])
-					sys.exit(1)
-				if marker23[3] == '0':
-					index0,index23 = index23,index0
-					marker0,marker23 = marker23,marker0
-				if marker0[1] != marker23[1]:
-					markerDrop.add(index23)
-					dropFile.write("\t".join(marker0))
-					dropFile.write("\t+\t\n")
-					dropFile.write("\t".join(marker23))
-					dropFile.write("\t-\tposition_change\n")
-				elif marker0[4] == '0' or marker0[5] == '0' or marker23[4] == '0' or marker23[5] == '0':
-					markerDrop.add(index0)
-					dropFile.write("\t".join(marker0))
-					dropFile.write("\t-\tfixed_allele\n")
-					dropFile.write("\t".join(marker23))
-					dropFile.write("\t+\t\n")
-				elif marker0[2] == marker23[2] and sorted([marker0[4].translate(strandFlipTrans),marker0[5].translate(strandFlipTrans)]) == sorted(marker23[4:6]):
-					markerDrop.add(index23)
-					dropFile.write("\t".join(marker0))
-					dropFile.write("\t+\t\n")
-					dropFile.write("\t".join(marker23))
-					dropFile.write("\t-\tstrand_flip\n")
-				elif sorted(marker0[4:6]) != sorted(marker23[4:6]):
-					markerDrop.add(index0)
-					dropFile.write("\t".join(marker0))
-					dropFile.write("\t-\tallele_mismatch\n")
-					dropFile.write("\t".join(marker23))
-					dropFile.write("\t+\t\n")
-				else:
-					dropFile.write("\t".join(marker0))
-					dropFile.write("\t+\tundecided\n")
-					dropFile.write("\t".join(marker23))
-					dropFile.write("\t+\tundecided\n")
+			if len(indecies) > 1:
+				i0 = i2 = i3 = None
+				for i in indecies:
+					assert(marker == markers[i][0])
+					if markers[i][3] == '0':
+						if i0 != None:
+							print "ERROR: multiple type-%d occurrences of marker '%s'" % (markers[i][3],marker)
+							sys.exit(1)
+						i0 = i
+					elif markers[i][3] == '2':
+						if i2 != None:
+							print "ERROR: multiple type-%d occurrences of marker '%s'" % (markers[i][3],marker)
+							sys.exit(1)
+						i2 = i
+					elif markers[i][3] == '3':
+						if i3 != None:
+							print "ERROR: multiple type-%d occurrences of marker '%s'" % (markers[i][3],marker)
+							sys.exit(1)
+						i3 = i
+				#foreach index
+				# the annotations will cause markerIndex{} to no longer agree with markers[],
+				# but we don't need markerIndex after this anyway so it doesn't matter
+				if i2 != None:
+					if i0 != None:
+						markers[i0][0] += "_t0"
+					if i3 != None:
+						markers[i3][0] += "_t3"
+				elif i0 != None:
+					if i3 != None:
+						markers[i3][0] += "_t3"
 			#if marker is duplicate
 		#foreach marker
-	#with dropFile
-	print "... OK"
+		print "... OK"
+	else: # original dupe handling logic
+		print "writing .drop.txt file '%s.drop.txt' ..." % args.prefix
+		strandFlipTrans = string.maketrans('AaCcGgTt','TTGGCCAA')
+		# s.translate(strandFlipTrans) is a shorter equivalent of s.replace('A','T').replace('C','G').replace('G','C').replace('T','A')
+		# which is used to check if one pair of alleles is the strand-flipped complement of the other
+		with open(args.prefix+'.drop.txt','wb') as dropFile:
+			dropFile.write("rs_id position exp_freq_a1 type allele1 allele2 status reason\n")
+			for marker,indecies in markerIndex.iteritems():
+				# our logic only covers markers appearing twice; thrice or more is an error
+				if len(indecies) > 2:
+					print "ERROR: %d occurrences of marker '%s'; only 2 are supported" % (len(indecies),marker)
+					sys.exit(1)
+				if len(indecies) == 2:
+					index0 = indecies.pop()
+					index23 = indecies.pop()
+					marker0 = markers[index0]
+					marker23 = markers[index23]
+					# our logic assumes the two versions of a marker will have different types (0 and non-0, usually 2 or 3)
+					if marker0[3] == marker23[3]:
+						print "ERROR: 2 occurrences of marker '%s' are both type %s" % (marker,marker0[3])
+						sys.exit(1)
+					if marker23[3] == '0':
+						index0,index23 = index23,index0
+						marker0,marker23 = marker23,marker0
+					# if the two versions have different positions, drop the type 2/3 and keep the type 0
+					if marker0[1] != marker23[1]:
+						markerDrop.add(index23)
+						dropFile.write("\t".join(marker0))
+						dropFile.write("\t+\t\n")
+						dropFile.write("\t".join(marker23))
+						dropFile.write("\t-\tposition_change\n")
+					# if either version has a 0 allele, drop the type 0 and keep the type 2/3
+					elif marker0[4] == '0' or marker0[5] == '0' or marker23[4] == '0' or marker23[5] == '0':
+						markerDrop.add(index0)
+						dropFile.write("\t".join(marker0))
+						dropFile.write("\t-\tfixed_allele\n")
+						dropFile.write("\t".join(marker23))
+						dropFile.write("\t+\t\n")
+					# if both versions have the same frequency but the alleles of one are the strand-flipped complements of the other, drop the type 2/3 and keep the type 0
+					elif marker0[2] == marker23[2] and sorted([marker0[4].translate(strandFlipTrans),marker0[5].translate(strandFlipTrans)]) == sorted([marker23[4].upper(),marker23[5].upper()]):
+						markerDrop.add(index23)
+						dropFile.write("\t".join(marker0))
+						dropFile.write("\t+\t\n")
+						dropFile.write("\t".join(marker23))
+						dropFile.write("\t-\tstrand_flip\n")
+					# if the two versions have different alleles, drop the type 0 and keep the type 2/3
+					elif sorted(marker0[4:6]) != sorted(marker23[4:6]):
+						markerDrop.add(index0)
+						dropFile.write("\t".join(marker0))
+						dropFile.write("\t-\tallele_mismatch\n")
+						dropFile.write("\t".join(marker23))
+						dropFile.write("\t+\t\n")
+					# otherwise, keep both versions
+					else:
+						dropFile.write("\t".join(marker0))
+						dropFile.write("\t+\tundecided\n")
+						dropFile.write("\t".join(marker23))
+						dropFile.write("\t+\tundecided\n")
+				#if marker is duplicate
+			#foreach marker
+		#with dropFile
+		print "... OK"
+	#which dupe resolution algorithm
+	markerIndex = None
 	
 	# (1,0,0) -> (1,1)
 	# (0,1,0) -> (1,2)
