@@ -99,7 +99,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,9,1,'2013-08-19'
+	versMaj,versMin,versRev,versDate = 0,9,2,'2014-09-23'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-to-plink version %s" % versStr
 	
@@ -230,7 +230,7 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 		dropFile.write("rs_id position exp_freq_a1 type allele1 allele2 status reason\n")
 		for marker,indecies in markerIndex.iteritems():
 			if len(indecies) > 2:
-				print "ERROR: %d occurrences of marker '%s'; only 2 are supported" % (count,marker)
+				print "ERROR: %d occurrences of marker '%s'; only 2 are supported" % (len(indecies),marker)
 				sys.exit(1)
 			if len(indecies) == 2:
 				index0 = indecies.pop()
