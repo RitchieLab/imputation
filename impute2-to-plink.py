@@ -186,7 +186,7 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 					continue
 				if line.startswith("snp_id rs_id position exp_freq_a1 info certainty type"):
 					continue
-				snpid,rsid,pos,freq,info,certainty,imptype = line.split(None,7)
+				snpid,rsid,pos,freq,info,certainty,imptype = line.split(None,6)
 				markerIndex[rsid].add( len(markers) )
 				markers.append( [rsid, pos, freq, imptype] )
 			#foreach line in infoFile
@@ -203,7 +203,7 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 				if m >= len(markers):
 					print "ERROR: genotype file contains too many markers"
 					sys.exit(1)
-				snpid,rsid,_,a1,a2 = line.split(None,5)
+				snpid,rsid,_,a1,a2 = line.split(None,4)
 				if rsid != markers[m][0]:
 					print "ERROR: genotype marker #%d is '%s', expected '%s'" % (m+1,rsid,markers[m][0])
 					sys.exit(1)
