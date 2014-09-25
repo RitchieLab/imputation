@@ -99,7 +99,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,9,3,'2014-09-25'
+	versMaj,versMin,versRev,versDate = 0,9,4,'2014-09-25'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-to-plink version %s" % versStr
 	
@@ -227,42 +227,38 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 		# in order to handle 3 versions, we moved to a simpler priority system for which ones to rename
 		print "annotating duplicate markers ..."
 		for marker,indecies in markerIndex.iteritems():
-			if len(indecies) > 1:
-				i0 = i2 = i3 = None
+			if marker == ".": # special tag, rename to chr#:pos label
 				for i in indecies:
 					assert(marker == markers[i][0])
-					if markers[i][3] == '0':
-						if i0 != None:
-							print "ERROR: multiple type-%d occurrences of marker '%s'" % (markers[i][3],marker)
-							sys.exit(1)
-						i0 = i
-					elif markers[i][3] == '2':
-						if i2 != None:
-							print "ERROR: multiple type-%d occurrences of marker '%s'" % (markers[i][3],marker)
-							sys.exit(1)
-						i2 = i
-					elif markers[i][3] == '3':
-						if i3 != None:
-							print "ERROR: multiple type-%d occurrences of marker '%s'" % (markers[i][3],marker)
-							sys.exit(1)
-						i3 = i
-					else:
+					markers[i][0] = "chr%s:%s" % (args_chromosome,markers[i][1])
+				#foreach index
+			elif len(indecies) > 1:
+				typeMs = {'0':set(), '2':set(), '3':set()}
+				for i in indecies:
+					assert(marker == markers[i][0])
+					if markers[i][3] not in typeMs:
 						print "ERROR: unknown type '%s' for marker '%s' at index %d" % (markers[i][3],marker,i)
 						sys.exit(1)
+					typeMs[markers[i][3]].add(i)
 				#foreach index
-				# the annotations will cause markerIndex{} to no longer agree with markers[],
-				# but we don't need markerIndex after this anyway so it doesn't matter
-				if i2 != None:
-					if i0 != None:
-						markers[i0][0] += "_t0"
-					if i3 != None:
-						markers[i3][0] += "_t3"
-				elif i0 != None:
-					markers[i3][0] += "_t3"
-				else:
-					print "ERROR: logic error (%s,%s,%s) for marker '%s'" % (i0,i2,i3,marker)
+				if len(typeMs['0']) != len(set(str(markers[i][1]).strip() for i in typeMs['0'])):
+					print "ERROR: duplicate type-0 positions for marker '%s' at indecies %s" % (marker,','.join(str(i) for i in typeMs['0']))
 					sys.exit(1)
-			#if marker is duplicate
+				if len(typeMs['2']) > 1:
+					print "ERROR: multiple type-2 records for marker '%s' at indecies %s" % (marker,','.join(str(i) for i in typeMs['2']))
+					sys.exit(1)
+				if len(typeMs['3']) > 1:
+					print "ERROR: multiple type-3 records for marker '%s' at indecies %s" % (marker,','.join(str(i) for i in typeMs['3']))
+					sys.exit(1)
+				if typeMs['2']:
+					for i in typeMs['0']:
+						markers[i][0] += "_t0"
+					for i in typeMs['3']:
+						markers[i][0] += "_t3"
+				elif typeMs['0']:
+					for i in typeMs['3']:
+						markers[i][0] += "_t3"
+			#if marker is special or duplicate
 		#foreach marker
 		print "... OK"
 	else: # original dupe handling logic
