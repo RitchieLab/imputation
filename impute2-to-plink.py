@@ -99,7 +99,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,9,3,'2014-09-23'
+	versMaj,versMin,versRev,versDate = 0,9,3,'2014-09-25'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-to-plink version %s" % versStr
 	
@@ -186,9 +186,9 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 					continue
 				if line.startswith("snp_id rs_id position exp_freq_a1 info certainty type"):
 					continue
-				snpid,rsid,pos,freq,info,certainty,imptype = line.split(None,6)
+				snpid,rsid,pos,freq,info,certainty,imptype = line.split(None,7)[:7]
 				markerIndex[rsid].add( len(markers) )
-				markers.append( [rsid, pos, freq, imptype] )
+				markers.append( [rsid,pos,freq,imptype] )
 			#foreach line in infoFile
 		#with infoFile
 		print "... OK: %d markers (%d duplicate)" % (len(markers),len(markers)-len(markerIndex))
@@ -203,7 +203,7 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 				if m >= len(markers):
 					print "ERROR: genotype file contains too many markers"
 					sys.exit(1)
-				snpid,rsid,_,a1,a2 = line.split(None,4)
+				snpid,rsid,pos,a1,a2 = line.split(None,5)[:5]
 				if rsid != markers[m][0]:
 					print "ERROR: genotype marker #%d is '%s', expected '%s'" % (m+1,rsid,markers[m][0])
 					sys.exit(1)
@@ -218,7 +218,7 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 		print "ERROR: genotype file(s) end after marker #%d, expected %d more markers" % (m,len(markers)-m)
 		sys.exit(1)
 	
-	# markers=[ (rsid,pos,freq,type,a1,a2), ... ]
+	# markers=[ [rsid,pos,freq,type,a1,a2], ... ]
 	
 	# choose between duplicate markers
 	markerDrop = set()
@@ -246,6 +246,9 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 							print "ERROR: multiple type-%d occurrences of marker '%s'" % (markers[i][3],marker)
 							sys.exit(1)
 						i3 = i
+					else:
+						print "ERROR: unknown type '%s' for marker '%s' at index %d" % (markers[i][3],marker,i)
+						sys.exit(1)
 				#foreach index
 				# the annotations will cause markerIndex{} to no longer agree with markers[],
 				# but we don't need markerIndex after this anyway so it doesn't matter
@@ -255,8 +258,10 @@ example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
 					if i3 != None:
 						markers[i3][0] += "_t3"
 				elif i0 != None:
-					if i3 != None:
-						markers[i3][0] += "_t3"
+					markers[i3][0] += "_t3"
+				else:
+					print "ERROR: logic error (%s,%s,%s) for marker '%s'" % (i0,i2,i3,marker)
+					sys.exit(1)
 			#if marker is duplicate
 		#foreach marker
 		print "... OK"
