@@ -24,6 +24,7 @@ class zopen(object):
 	def __del__(self):
 		if self._filePtr:
 			self._filePtr.close()
+			self._filePtr = None
 	#__del__()
 	
 	
@@ -51,6 +52,8 @@ class zopen(object):
 			data = self._dc.unused_data
 			if data:
 				self._dc = zlib.decompressobj(zlib.MAX_WBITS | 32) # autodetect gzip or zlib header
+			elif not self._filePtr:
+				raise Exception("cannot read a closed file")
 			else:
 				data = self._filePtr.read(self._chunkSize)
 			if data:
@@ -85,6 +88,8 @@ class zopen(object):
 	
 	
 	def seek(self, offset, whence = 0):
+		if not self._filePtr:
+			raise Exception("cannot seek a closed file")
 		if offset != 0:
 			raise Exception("zfile.seek() does not support offsets != 0")
 		self._filePtr.seek(0, whence)
@@ -93,11 +98,19 @@ class zopen(object):
 		self._lines = list()
 	#seek()
 	
+	
+	def close(self):
+		if self._filePtr:
+			self._filePtr.close()
+			self._filePtr = None
+	#close()
+	
+	
 #zopen
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,8,'2013-10-02'
+	versMaj,versMin,versRev,versDate = 0,10,9,'2014-11-17'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -363,6 +376,7 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 		samples = list()
 		for line in sampleFile[i]:
 			samples.append(tuple(line.rstrip("\r\n").split()))
+		sampleFile[i].close()
 		
 		# identify duplicate samples
 		numFilter = numDupe = 0
