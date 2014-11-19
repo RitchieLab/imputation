@@ -110,7 +110,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,9,'2014-11-17'
+	versMaj,versMin,versRev,versDate = 0,10,10,'2014-11-19'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -232,7 +232,7 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 				except StopIteration:
 					exit("ERROR: input info file #%d ended after %d markers, but genotype file continues" % (i+1,m))
 				m += 1
-				if (geno[1] != info[1]) or (geno[2] != info[2]):
+				if (geno[1].lower() != info[1].lower()) or (geno[2].lower() != info[2].lower()):
 					exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (m,i+1,geno[1],geno[2],info[1],info[2]))
 				marker = (geno[2].lower(), min(geno[3],geno[4]).lower(), max(geno[3],geno[4]).lower())
 				
