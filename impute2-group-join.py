@@ -110,7 +110,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,10,'2014-11-19'
+	versMaj,versMin,versRev,versDate = 0,10,11,'2014-11-19'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -459,7 +459,7 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 					while line.startswith("#") or (line == header):
 						line = infoFile[i].next().rstrip("\r\n")
 					infoLine[i] = line.split()
-					if (genoLine[i][1] != infoLine[i][1]) or (genoLine[i][2] != infoLine[i][2]):
+					if (genoLine[i][1].lower() != infoLine[i][1].lower()) or (genoLine[i][2].lower() != infoLine[i][2].lower()):
 						exit("ERROR: marker #%d mismatch in input files #%d: '%s %s' vs '%s %s'" % (1,i+1,genoLine[i][1],genoLine[i][2],infoLine[i][1],infoLine[i][2]))
 				match = match and (genoMarker[i] == marker)
 			#foreach input
