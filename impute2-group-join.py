@@ -110,7 +110,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 0,10,11,'2014-11-19'
+	versMaj,versMin,versRev,versDate = 1,0,0,'2015-01-14'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -121,18 +121,24 @@ if __name__ == "__main__":
 		epilog="""
 example: %(prog)s -i a_chr22 b_chr22 -f my.samples -m chr22.markers -o ab_chr22 -d dupe_chr22
 
+If the same sample appears more than once (in the same input or different
+inputs), only the first occurrence will be merged; the remainder will be
+written to separate files using the --dupes prefix, if specified.
+
+The merged .impute2_info file will reflect average scores.
+
 The script requires ~1.5 hours and ~2GB RAM per million markers to be merged,
 but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 """
 	)
 	parser.add_argument('-i', '--input', action='append', nargs='+', type=str, metavar='prefix', required=True,
-		help="prefix(es) of impute2 .phased.sample and .best_guess_haps_imputation.* files to be joined (required)"
+		help="prefix(es) of impute2 .phased.sample, .impute2 and .impute2_info files to be joined (required)"
 	)
 	parser.add_argument('-f', '--filter', action='store', type=str, metavar='file',
-		help="a file listing the sample IDs to retain (default: none)"
+		help="a file listing the sample IDs to retain while filtering out the rest (default: none)"
 	)
 	parser.add_argument('-m', '--markers', action='store', type=str, metavar='file',
-		help="a file listing the expected order of all markers (default: none)"
+		help="a file listing the expected order of all markers across all inputs (default: none)"
 	)
 	parser.add_argument('-o', '--output', action='store', type=str, metavar='prefix', required=True,
 		help="prefix for joined output and log files"
@@ -163,6 +169,10 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 			genoFile.append(zopen(prefix+'.best_guess_haps_imputation.impute2.gz'))
 		elif os.path.exists(prefix+'.best_guess_haps_imputation.impute2'):
 			genoFile.append(open(prefix+'.best_guess_haps_imputation.impute2','rU'))
+		elif os.path.exists(prefix+'.impute2.gz'):
+			genoFile.append(zopen(prefix+'.impute2.gz'))
+		elif os.path.exists(prefix+'.impute2'):
+			genoFile.append(open(prefix+'.impute2','rU'))
 		else:
 			exit("ERROR: %s.best_guess_haps_imputation.impute2(.gz) not found" % prefix)
 		
@@ -170,6 +180,10 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 			infoFile.append(zopen(prefix+'.best_guess_haps_imputation.impute2_info.gz'))
 		elif os.path.exists(prefix+'.best_guess_haps_imputation.impute2_info'):
 			infoFile.append(open(prefix+'.best_guess_haps_imputation.impute2_info','rU'))
+		elif os.path.exists(prefix+'.impute2_info.gz'):
+			infoFile.append(zopen(prefix+'.impute2_info.gz'))
+		elif os.path.exists(prefix+'.impute2_info'):
+			infoFile.append(open(prefix+'.impute2_info','rU'))
 		else:
 			exit("ERROR: %s.best_guess_haps_imputation.impute2_info(.gz) not found" % prefix)
 		
