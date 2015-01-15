@@ -121,8 +121,7 @@ if __name__ == "__main__":
 		formatter_class=argparse.RawDescriptionHelpFormatter,
 		description=versDesc,
 		epilog="""
-example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9
-         -p output -b -t -d $TMPDIR
+example: %(prog)s -s my.sample -i my.impute2_info.gz -g my.impute2.gz -m 0.9 -p output -b -t -d $TMPDIR
 """
 	)
 	parser.add_argument('-s', '--sample', type=str, metavar='file', required=True,
