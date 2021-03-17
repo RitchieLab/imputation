@@ -110,7 +110,7 @@ class zopen(object):
 
 
 if __name__ == "__main__":
-	versMaj,versMin,versRev,versDate = 1,0,0,'2015-01-14'
+	versMaj,versMin,versRev,versDate = 1,0,1,'2015-10-14'
 	versStr = "%d.%d.%d (%s)" % (versMaj, versMin, versRev, versDate)
 	versDesc = "impute2-group-join version %s" % versStr
 	
@@ -288,7 +288,7 @@ but if resource limits are strictly enforced you should add ~500MB-1GB extra.
 		
 		# apply highest RS# labels to all markers
 		for marker,labels in markerLabels.iteritems():
-			rses = set(int(l[2:]) for l in labels if l.startswith('rs'))
+			rses = set(int(l[2:]) for l in labels if (l.startswith('rs') and l[2:].isdigit()))
 			markerGeno[marker][1] = ('rs%d' % max(rses)) if rses else min(labels)
 		
 		# check for marker dupe warnings
